@@ -1,14 +1,7 @@
 pipeline {
-
     agent any
 
     stages {
-
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
 
         stage('Test') {
             agent {
@@ -18,10 +11,19 @@ pipeline {
                 }
             }
 
+            environment {
+                HOME = "${WORKSPACE}"
+            }
+
             steps {
                 sh '''
+                    echo "Python:"
                     python --version
-                    pip install --no-cache-dir -r requirements.txt
+
+                    echo "Installing dependencies..."
+                    python -m pip install --user --no-cache-dir -r requirements.txt
+
+                    echo "Running tests..."
                     python -m pytest -v
                 '''
             }
@@ -30,8 +32,8 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    docker build \
-                      -t flask-demo:${BUILD_NUMBER} .
+                    echo "Building Flask application image..."
+                    docker build -t flask-demo:${BUILD_NUMBER} .
                 '''
             }
         }
