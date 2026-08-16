@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'ghcr.io/puneeth-03/flask-demo'
+        GITOPS_REPO = 'https://github.com/Puneeth-03/flask-demo-gitops.git'
     }
 
     stages {
@@ -36,8 +37,6 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    echo "Building Docker image..."
-
                     docker build \
                         -t ${IMAGE_NAME}:${BUILD_NUMBER} \
                         -t ${IMAGE_NAME}:latest \
@@ -68,15 +67,50 @@ pipeline {
                 }
             }
         }
+
+        stage('Update GitOps Repository') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-gitops',
+                        usernameVariable: 'GH_USERNAME',
+                        passwordVariable: 'GH_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        rm -rf gitops
+
+                        git clone \
+                            https://${GH_USERNAME}:${GH_TOKEN}@github.com/Puneeth-03/flask-demo-gitops.git \
+                            gitops
+
+                        cd gitops
+
+                        git config user.name "jenkins"
+                        git config user.email "jenkins@localhost"
+
+                        sed -i \
+                            "s#image: ghcr.io/puneeth-03/flask-demo:.*#image: ghcr.io/puneeth-03/flask-demo:${BUILD_NUMBER}#" \
+                            deployment.yaml
+
+                        git add deployment.yaml
+
+                        git commit -m "Deploy flask-demo ${BUILD_NUMBER}" || true
+
+                        git push origin main
+                    '''
+                }
+            }
+        }
     }
 
     post {
         success {
-            echo 'CI pipeline completed successfully.'
+            echo 'CI/CD pipeline completed successfully.'
         }
 
         failure {
-            echo 'CI pipeline failed.'
+            echo 'CI/CD pipeline failed.'
         }
     }
 }
