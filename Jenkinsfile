@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    environment {
+        IMAGE_NAME = 'ghcr.io/puneeth-03/flask-demo'
+    }
+
     stages {
 
         stage('Test') {
@@ -32,9 +36,36 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 sh '''
-                    echo "Building Flask application image..."
-                    docker build -t flask-demo:${BUILD_NUMBER} .
+                    echo "Building Docker image..."
+
+                    docker build \
+                        -t ${IMAGE_NAME}:${BUILD_NUMBER} \
+                        -t ${IMAGE_NAME}:latest \
+                        .
                 '''
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'github-ghcr',
+                        usernameVariable: 'GH_USERNAME',
+                        passwordVariable: 'GH_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        echo "$GH_TOKEN" | docker login ghcr.io \
+                            -u "$GH_USERNAME" \
+                            --password-stdin
+
+                        docker push ${IMAGE_NAME}:${BUILD_NUMBER}
+                        docker push ${IMAGE_NAME}:latest
+
+                        docker logout ghcr.io
+                    '''
+                }
             }
         }
     }
